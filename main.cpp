@@ -1,192 +1,184 @@
 // -*- compile-command: "make all"; -*-
 #include "header.h"
+#include "instance.h"
 
-bool startsWith(string const& s, string const& t) {
-  if(s.size() < t.size()) return 0;
-  FOR(i,t.size()) if(s[i]!=t[i]) return 0;
-  return 1;
+const double MAX_TIME1 = 20.0;
+const double MAX_TIME2 = 80.0;
+
+partial_solution sa_1() {
+  int n = I.n;
+  solution S; double curScore = S.tourLength();
+  partial_solution bestS = S; double bestScore = curScore;
+  int niter=0;
+  int lImp=-100;
+
+  //
+
+  double saStart = timeInfo.getTime();
+  double maxTemp = 400.0;
+  double temp = 0.0;
+  //
+  auto trySwap = [&](){
+    int i=0, j=0;
+    while(i==j) { i = random(n-1); j = random(n-1); }
+    if(i>j) swap(i,j);
+    double delta = 0;
+    if(i == 0) {
+      delta += I.dist(0, S.A[i]);
+      delta -= I.dist(0, S.A[j]);
+    } else {
+      delta += I.dist(S.A[i-1], S.A[i]);
+      delta -= I.dist(S.A[i-1], S.A[j]);
+    }
+    if(j == n-2) {
+      delta += I.dist(0, S.A[j]);
+      delta -= I.dist(0, S.A[i]);
+    } else {
+      delta += I.dist(S.A[j], S.A[j+1]);
+      delta -= I.dist(S.A[i], S.A[j+1]);
+    }
+    if(delta >= - randomDouble() * temp) {
+      reverse(S.A.data()+i, S.A.data()+j+1);
+      curScore = curScore + delta;
+      if(curScore > bestScore) {
+          bestS = S;
+          bestScore = curScore;
+          if(lImp < niter-(1<<18)) {
+            cerr << "Improve: " << bestScore << " " << S.TW << "/" << I.W << endl;
+            lImp = niter;
+          }
+        }
+    }
+  };
+  //
+  while(1) {
+    if((niter&((1<<20)-1)) == 0) {
+      cout << niter << " " << (timeInfo.getTime() - saStart) << " " << curScore << " " << temp << endl;
+    }
+    if((niter&((1<<14)-1)) == 0) {
+      double done = (timeInfo.getTime() - saStart) / MAX_TIME1;
+      temp = (1.0 - pow(done, 0.15)) * maxTemp;
+      if(done >= 1.0) break;
+    }
+    niter += 1;
+    trySwap();
+  }
+  return bestS;
 }
 
-struct city {
-  int x, y;
-  vi items;
-};
-
-struct item {
-  int p, w;
-  int node;
-};
-
-struct instance {
-  string name = "";
-  int n = -1, m = -1, W = -1;
-  double vmin = -1, vmax = -1, R;
-
-  double nu = -1;
-
-  vector<city> cities;
-  vector<item> items;
-
-  void read(istream& ss) {
-    while(1) {
-      while(ss.good() && (isblank(ss.peek()) || iscntrl(ss.peek()))) ss.get();
-      if(!ss.good()) return;
-      string s; getline(ss, s);
-      char *buf0 = 0, *buf1 = 0;
-      if(sscanf(s.data(), " %m[^:\r\n]: %m[^:\r\n] ", &buf0, &buf1) == -1) {
-        throw runtime_error("Bad line: " + s);
-      }
-      string s0(buf0);
-      if(s0 == "PROBLEM NAME") {
-        name = string(buf1);
-      } else if(s0 == "KNAPSACK DATA TYPE") {
-      } else if(s0 == "DIMENSION") {
-        n = atoi(buf1);
-      } else if(s0 == "NUMBER OF ITEMS") {
-        m = atoi(buf1);
-      } else if(s0 == "CAPACITY OF KNAPSACK") {
-        W = atoi(buf1);
-      } else if(s0 == "MIN SPEED") {
-        vmin = atof(buf1);
-      } else if(s0 == "MAX SPEED") {
-        vmax = atof(buf1);
-      } else if(s0 == "RENTING RATIO") {
-        R = atof(buf1);
-      } else if(s0 == "EDGE_WEIGHT_TYPE") {
-        assert(string(buf1) == "CEIL_2D");
-      } else if(startsWith(s0, "NODE_COORD_SECTION")) {
-        cities.resize(n); int dummy;
-        FOR(i,n) { ss >> dummy >> cities[i].x >> cities[i].y;  }
-      } else if(startsWith(s0, "ITEMS SECTION")) {
-        items.resize(m); int dummy;
-        FOR(i,m) {
-          ss >> dummy >> items[i].p >> items[i].w >> items[i].node;
-          --items[i].node;
-          cities[items[i].node].items.pb(i);
-        }
-      } else {
-        throw runtime_error("Unknown field: " + s0);
-      }
-      free(buf0); free(buf1);
-    }
-  }
-
-  void print() {
-    cerr << "Name: " << name << endl;
-    cerr << "Cities: " << n << " " << "Items: " << m << endl;
-    cerr << "Vmin: " << vmin << " Vmax: " << vmax << " " << endl;
-  }
-
-  bool validateAndInit() {
-    if(name.empty()) return 0;
-    if(n < 0 || m < 0 || W < 0 || R < 0) return 0;
-    if(vmin < 0 || vmax < 0) return 0;
-
-    nu = (vmax-vmin) / W;
-
-    return 1;
-  }
-
-  double dist2(int i, int j) const {
-    return SQ((double)(cities[i].x-cities[j].x)) + SQ((double)(cities[i].y-cities[j].y));
-  }
-
-  double dist(int i, int j) const {
-    return sqrt(dist2(i,j));
-  }
-} I;
-
-struct solution {
-  solution() {
-    n = I.n; m = I.m;
-  }
-  int n, m;
-  //
-  int TW = 0;
-  vector<int>  A;
-  vector<bool> B;
-  //
-  void print(ostream& ss) {
-    ss << "[1,"; FOR(i,I.n-1) { ss << ',' << A[i+1]+1; } ss << ']' << '\n';
-    { bool b=0;
-      ss << '['; FOR(i,I.m) if(B[i]) { if(b) ss << ','; b=1; ss << i+1; } ss << ']' << '\n';
-    }
-  }
-  //
-  void trivial() {
-    A.resize(n-1); iota(all(A),1);
-    B.resize(m,0);
-  }
-  //
-  double score() {
-    double score = 0;
-    //
-    FOR(i,I.m) if(B[i]) {
-      score += I.items[i].p;
-    }
-    //
-    int cw = 0;
-    FOR(i0,A.size()) {
-      int i = A[i0];
-      int j = (i0+1 < (int)A.size()) ? A[i0+1] : 0;
-      for(int k : I.cities[i].items) if(B[k]) cw += I.items[k].w;
-      double d = I.dist(i,j);
-      score -= (I.R * d) / (I.vmax - I.nu * cw);
-    }
-    return score;
-  }
-};
-
-void sa() {
+partial_solution greedy_2(partial_solution* initialS = 0) {
   int n = I.n, m = I.m;
-  solution S; S.trivial(); double curScore = S.score();
-  solution bestS = S; double bestScore = curScore;
+  solution S;
+  if(initialS) S.from_partial(*initialS);
+  double curScore = S.score();
+
+  vector<double> D(n);
+  D[0] = 0; D[S.A.back()] = I.dist(0,S.A.back());
+  FORD(i,n-3,0) D[S.A[i]] = D[S.A[i+1]] + I.dist(S.A[i],S.A[i+1]);
+  vi J(m); iota(all(J), 0);
+  auto itemValue = [&](int i) -> double {
+    return (double) I.items[i].p / ((double) I.items[i].w * (double) D[I.items[i].node]);
+  };
+  sort(all(J), [&](int i, int j) {
+      return itemValue(i) > itemValue(j);
+    });
+
+  auto add = [&]() -> bool {
+    if(S.TW > I.W) return 0;
+    double score = S.score();
+    if(score >= curScore) {
+      curScore = score;
+      return 1;
+    }else{
+      return 0;
+    }
+  };
+
+  FOR(k,16) for(int i : J) { S.flipB(i); if(!add()) S.flipB(i); }
+  return S;
+}
+
+partial_solution sa_2(partial_solution* initialS = 0) {
+  int n = I.n, m = I.m;
+  solution S;
+  if(initialS) S.from_partial(*initialS);
+  double curScore = S.score();
+  partial_solution bestS = S; double bestScore = curScore;
+  int niter=0;
+  int lImp=-100;
+
   //
-  auto add = [&](){
-    if(curScore > bestScore) {
-      bestS = S;
-      bestScore = curScore;
-      cerr << "Improve: " << bestScore << endl;
+
+  double saStart = timeInfo.getTime();
+  double maxTemp = 1000.0;
+  double temp = 0.0;
+
+  auto add = [&]() -> bool {
+    if(S.TW > I.W) return 0;
+    double score = S.score();
+    double delta = score - curScore;
+    if(delta >= - randomDouble() * temp) {
+      curScore = score;
+      if(curScore > bestScore) {
+        bestS = S;
+        bestScore = curScore;
+        if(lImp < niter-(1<<11)) {
+          cerr << "Improve: " << bestScore << " " << S.TW << "/" << I.W << endl;
+          lImp = niter;
+        }
+      }
+      return 1;
+    }else{
+      return 0;
     }
   };
   //
   auto trySwap = [&](){
     int i=0, j=0;
     while(i==j) { i = random(n-1); j = random(n-1); }
-    swap(S.A[i], S.A[j]);
-    double score = S.score();
-    if(score > curScore) {
-      curScore = score;
-      add();
-    }else{
-      swap(S.A[i], S.A[j]);
+    if(i>j) swap(i,j);
+    reverse(S.A.data()+i, S.A.data()+j+1);
+    if(!add()) {
+      reverse(S.A.data()+i, S.A.data()+j+1);
+    }
+  };
+  auto trySwap2 = [&](){
+    int i=0, j=0;
+    while(i==j) { i = random(m); j = random(m); }
+    if(i>j) swap(i,j);
+    S.flipB(i); S.flipB(j);
+    if(!add()) {
+      S.flipB(i); S.flipB(j);
     }
   };
   auto tryFlip = [&](){
     int i = random(m);
-    S.B[i] = !S.B[i]; S.TW += (S.B[i]?1:-1)*I.items[i].w;
-    double score = S.score();
-    if(score > curScore && S.TW < I.W) {
-      curScore = score;
-      add();
-    }else{
-      S.B[i] = !S.B[i]; S.TW += (S.B[i]?1:-1)*I.items[i].w;
+    S.flipB(i);
+    if(!add()) {
+      S.flipB(i);
     }
   };
   //
-  int niter=0;
   while(1) {
-    niter += 1;
-    if((niter&65535) == 0) {
-      cout << niter << endl;
+    if((niter&131071) == 0) {
+      cout << niter << " " << (timeInfo.getTime() - saStart) << " " << curScore << " " << temp << endl;
     }
-    int r = random(2);
-    if(r<1) {
+    if((niter&2047) == 0) {
+      double done = (timeInfo.getTime() - saStart) / MAX_TIME2;
+      temp = (1.0 - pow(done, 0.15)) * maxTemp;
+      if(done >= 1.0) break;
+    }
+    niter += 1;
+    int r = random(5);
+    if(r<=0) {
       trySwap();
+    }else if(r<=1){
+      trySwap2();
     }else{
       tryFlip();
     }
   }
+  return bestS;
 }
 
 int main(int argc, char** argv){
@@ -203,7 +195,11 @@ int main(int argc, char** argv){
   }
   I.print();
 
-  sa();
+  partial_solution S1 = sa_1();
+  cerr << "done S1" << endl;
+  partial_solution G2 = greedy_2(&S1);
+  cerr << "done G2" << endl;
+  partial_solution S2 = sa_2(&G2);
 
   cerr << "Elapsed: " << (timeInfo.getTime()-time_0) << "s" << endl;
 
