@@ -1,0 +1,6 @@
+TODO:
+ - plot scores for first idea (mst + sa tsp + greedy + sa packing) (COMMIT : COMMIT ID) (difference to the values found by the article is close to the difference in tsp efficiency)
+ - plot cityWeight
+ - observations : solution quality tied to tsp quality
+ - => maximize something closer to the ttp in the first phase (finding a good tour without packing) instead
+ - document the complexity of data structures

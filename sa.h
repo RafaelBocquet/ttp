@@ -22,7 +22,7 @@ void simulated_annealing(SOL S, double score,
                          vector<sa_move<SOL>> moves,
                          function<void(double, double, SOL const& s)> onImprovement) {
   assert(moves.size());
-  int iterationCount = 0;
+  long long int iterationCount = 0; // can get over 2^32
   int updateTempCounter = updateTempTime;
   int printInfoCounter = printInfoTime;
 

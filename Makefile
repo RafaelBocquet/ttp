@@ -1,4 +1,4 @@
-main: main.cpp build/header.h.pch instance.h sa.h tour.h
+main: main.cpp build/header.h.pch instance.h sa.h tour.h ttour.h
 	mkdir -p build
 	time clang++ -include-pch build/header.h.pch -Wall -Wextra -std=c++1z -g -O3 -march=native main.cpp -o build/main
 	rm -f main

@@ -3,6 +3,7 @@
 #include "instance.h"
 #include "sa.h"
 #include "tour.h"
+#include "ttour.h"
 
 // initial tour : 2-approximation of the tsp problem, O(n^2)
 vi initial_tour(instance const& I) {
@@ -100,48 +101,61 @@ array_tour tsp(instance const& I, vi const& tour) {
                });
   simulated_annealing<array_tour>
     (S, score,
-     30.0, sqrt(score), // other max temperature ?
+     600.0, sqrt(score), // other max temperature ?
      (1<<12), (1<<22),
      moves,
-     [&](double t, double sc, array_tour const& S_) {
-      if(t>0.9) {
-        score = sc;
-        S = S_;
-      }
-     });
+     [&](double, double sc, array_tour const& S_) {
+      score = sc;
+      S = S_;
+    });
   return S;
 }
 
-void greedy_packing(instance const& I, vi const& tour) {
+ttour greedy_packing(instance const& I, vi tour) {
   int n = I.n, m = I.m;
-  // solution S;
-  // if(initialS) S.from_partial(*initialS);
-  // double curScore = S.score();
+  ttour S(I, tour);
 
-  // vector<double> D(n);
-  // D[0] = 0; D[S.A.back()] = I.dist(0,S.A.back());
-  // FORD(i,n-3,0) D[S.A[i]] = D[S.A[i+1]] + I.dist(S.A[i],S.A[i+1]);
-  // vi J(m); iota(all(J), 0);
-  // auto itemValue = [&](int i) -> double {
-  //   return (double) I.items[i].p / ((double) I.items[i].w * (double) D[I.items[i].node]);
-  // };
-  // sort(all(J), [&](int i, int j) {
-  //     return itemValue(i) > itemValue(j);
-  //   });
+  // distance from a city to the end
+  vector<double> D(n);
+  D[0] = 0; D[tour[n-2]] = I.dist(0,tour[n-2]);
+  FORD(i,n-3,0) D[tour[i]] = D[tour[i+1]] + I.dist(tour[i],tour[i+1]);
 
-  // auto add = [&]() -> bool {
-  //   if(S.TW > I.W) return 0;
-  //   double score = S.score();
-  //   if(score >= curScore) {
-  //     curScore = score;
-  //     return 1;
-  //   }else{
-  //     return 0;
-  //   }
-  // };
+  auto itemValue = [&](int i) -> double {
+    return (double) I.items[i].p / (double) I.items[i].w / (double) D[I.items[i].node];
+  };
 
-  // FOR(k,16) for(int i : J) { S.flipB(i); if(!add()) S.flipB(i); }
-  // return S;
+  vi J(m); iota(all(J), 0);
+  sort(all(J), [&](int i, int j) {
+      return itemValue(i) > itemValue(j);
+    });
+
+  double score = S.score(I);
+  bool imp=0;
+  auto add = [&]() -> bool {
+    if(S.totalWeight > I.W) return 0;
+    double score2 = S.score(I);
+    if(score2 >= score) {
+      imp=1;
+      score = score2;
+      return 1;
+    }else{
+      return 0;
+    }
+  };
+
+  while(1) {
+    imp=0;
+    for(int i : J) {
+      if(!S.packing[i]) { S.pack(I,i); if(!add()) S.unpack(I,i); }
+      else { S.unpack(I,i); if(!add()) S.pack(I,i); }
+    }
+    cout << score << endl;
+    if(!imp) break;
+  }
+
+  cout << score << " " << S.totalProfit << " " << S.totalWeight << endl;
+
+  return S;
 }
 
 
@@ -167,6 +181,7 @@ int main(int argc, char** argv){
   cout << "Length: " << tour_length(I, tour) << endl;
 
   array_tour tour2 = tsp(I,tour);
+  cout << tour_length(I,tour2.tour) << endl;
   greedy_packing(I,tour2.tour);
 
   cerr << "Elapsed: " << (timeInfo.getTime()-time_0) << "s" << endl;
