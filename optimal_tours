@@ -1,0 +1,11 @@
+best known solutions (http://comopt.ifi.uni-heidelberg.de/software/TSPLIB95/STSP.html)
+
+270:   2579
+4000:  182566
+33810: 66048945
+
+current results from a 100s 2-opt sa search:
+
+270:   2613
+4000:  191017
+33810: 76356300

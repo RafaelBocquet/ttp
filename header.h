@@ -1,12 +1,11 @@
-// -*- compile-command: "make all"; -*-
+// -*- compile-command: "make header.pch"; -*-
 #pragma once
-#define _GLIBCXX_USE_CXX11_ABI 0
 #include <stdio.h>
 #include <bits/stdc++.h>
 
-#define FOR(i, n)     for(lli i = 0; i < (lli)(n); ++i)
-#define FORU(i, j, k) for(lli i = (j); i <= (lli)(k); ++i)
-#define FORD(i, j, k) for(lli i = (j); i >= (lli)(k); --i)
+#define FOR(i, n)     for(int i = 0; i < (int)(n); ++i)
+#define FORU(i, j, k) for(int i = (j); i <= (int)(k); ++i)
+#define FORD(i, j, k) for(int i = (j); i >= (int)(k); --i)
 
 #define SQ(x) ((x)*(x))
 
@@ -52,13 +51,10 @@ struct tpl : public std::tuple<As...> {
   w() { return get<3>(*this); }
 };
 
-using lli   = long long int;
-using llu   = long long unsigned;
-
-using pii   = tpl<lli, lli>;
-using piii  = tpl<lli, lli, lli>;
-using piiii = tpl<lli, lli, lli, lli>;
-using vi    = vector<lli>;
+using pii   = tpl<int, int>;
+using piii  = tpl<int, int, int>;
+using piiii = tpl<int, int, int, int>;
+using vi    = vector<int>;
 using vii   = vector<pii>;
 using viii  = vector<piii>;
 using vvi   = vector<vi>;
@@ -189,3 +185,27 @@ static struct timeInfoS {
     return chrono::duration<double>(c_now-c_start).count();
   }
 } timeInfo;
+
+// Union-find
+
+struct union_find {
+  vi A;
+
+  union_find(int n = 0) : A(n) {
+    iota(all(A), 0);
+  }
+
+  int addNode() {
+    A.pb(A.size());
+    return A.size()-1;
+  }
+
+  int find(int a) {
+    return A[a] == a ? a : A[a] = find(A[a]);
+  }
+
+  void unite(int a, int b) {
+    a = find(a); b = find(b);
+    A[a] = b;
+  }
+};
