@@ -4,9 +4,9 @@
 
 template<typename SOL>
 struct sa_move {
-  int  weight;
-  function<void()> pick_random;
-  function<double(SOL const&)> eval;
+  int weight;
+  function<void(SOL const&)> pick_random;
+  function<double(SOL&)> eval; // should not modify SOL
   function<void(SOL&)> apply;
 };
 
@@ -32,6 +32,8 @@ void simulated_annealing(SOL S, double score,
   double saStart = timeInfo.getTime();
   double temp = maxTemp;
 
+  int acCount = 0;
+
   vi  movePicker;
   FOR(i, moves.size()) {
     FOR(j,moves[i].weight) movePicker.pb(i);
@@ -52,9 +54,10 @@ void simulated_annealing(SOL S, double score,
 
     // try a move
     sa_move<SOL> const& m = moves[movePicker[random(movePicker.size())]];
-    m.pick_random();
+    m.pick_random(S);
     double delta = m.eval(S);
     if(delta <= randomDouble() * temp) {
+      acCount++;
       m.apply(S);
       score += delta;
       if(score < bestScore) {
@@ -63,4 +66,5 @@ void simulated_annealing(SOL S, double score,
       }
     }
   }
+  cout << "Accepted: " << acCount << "/" << iterationCount << " : " << (double)acCount/(double)iterationCount << endl;
 }

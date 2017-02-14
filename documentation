@@ -4,3 +4,4 @@ TODO:
  - observations : solution quality tied to tsp quality
  - => maximize something closer to the ttp in the first phase (finding a good tour without packing) instead
  - document the complexity of data structures
+ - replace item focus by point focus

@@ -5,6 +5,9 @@
 #include "tour.h"
 #include "ttour.h"
 
+const double MAX_SA_TIME1 = 30.0;
+const double MAX_SA_TIME2 = 30.0;
+
 // initial tour : 2-approximation of the tsp problem, O(n^2)
 vi initial_tour(instance const& I) {
   cerr << "Computing initial tour..." << endl;
@@ -66,7 +69,7 @@ array_tour tsp(instance const& I, vi const& tour) {
   } move2opt;
   moves.pb(sa_move<array_tour>
            { 1,
-               ([&]() {
+               ([&](array_tour const&) {
                  do {
                    move2opt.i=random(n-1);
                    move2opt.j=random(n-1);
@@ -101,7 +104,7 @@ array_tour tsp(instance const& I, vi const& tour) {
                });
   simulated_annealing<array_tour>
     (S, score,
-     600.0, sqrt(score), // other max temperature ?
+     MAX_SA_TIME1, sqrt(score), // other max temperature ?
      (1<<12), (1<<22),
      moves,
      [&](double, double sc, array_tour const& S_) {
@@ -158,6 +161,122 @@ ttour greedy_packing(instance const& I, vi tour) {
   return S;
 }
 
+ttour sa_packing(instance const& I, ttour tour) {
+  int n = I.n, m = I.m;
+  (void) n;
+  ttour S = tour;
+  double score = S.score(I);
+  vector<sa_move<ttour>> moves;
+  // 2-opt
+  struct {
+    int i;
+  } moveSwap;
+  moves.pb(sa_move<ttour>
+           { 1,
+               ([&](ttour const&) {
+                 moveSwap.i=random(m);
+               }),
+               ([&](ttour const& S2) -> double {
+                 ttour S = S2;
+                 double sscore = S.score(I);
+                 int i = moveSwap.i;
+                 if(!S.packing[i]) S.pack(I,i); else S.unpack(I,i);
+                 bool ok = S.totalWeight <= I.W;
+                 double nscore = S.score(I);
+                 return ok?sscore-nscore:1e20;
+               }),
+               ([&](ttour& S) {
+                 int i = moveSwap.i;
+                 if(!S.packing[i]) S.pack(I,i); else S.unpack(I,i);
+               })
+               });
+  simulated_annealing<ttour>
+    (S, -score,
+     MAX_SA_TIME1, sqrt(score), // other max temperature ?
+     (1<<12), (1<<18),
+     moves,
+     [&](double, double sc, ttour const& S_) {
+      score = -sc;
+      S = S_;
+    });
+  cout << S.score(I) << " " << S.totalProfit << " " << S.totalWeight << endl;
+  return S;
+}
+
+void dosmth(instance const& I, vi tour, ttour const& init) {
+  int n = I.n, m = I.m;
+  (void) m;
+  vector<vector<tpl<double, double> > > V(n);
+  vi W(n,0);
+  FOR(i,n) {
+    int is = I.cities[i].items.size();
+    vector<tpl<double, double> > V2;
+    FOR(mask, 1<<is) {
+      double w=0;
+      double p=0;
+      FOR(j,is) if(mask & (1<<j)) {
+        w += I.items[I.cities[i].items[j]].w;
+        p += I.items[I.cities[i].items[j]].p;
+      }
+      V2.pb(mt(w,p));
+    }
+    sort(all(V2));
+    double maxP=-1;
+    for(auto p : V2) {
+      if(p.y() > maxP) {
+        V[i].pb(p);
+        maxP = p.y();
+        //if(init.cityWeights[i] >= p.x()-EPS) W[i] = V[i].size()-1;
+      }
+    }
+  }
+
+  ttour S(I, tour);
+  FOR(i,n) S.setCity(i,V[i][W[i]]);
+  double score = S.score(I);
+  cout << score << endl;
+  vector<sa_move<ttour>> moves;
+  // move
+  struct {
+    int i;
+    int nn;
+  } movePack;
+  moves.pb(sa_move<ttour>
+           { 1,
+               ([&](ttour const& S) {
+                 while(1) {
+                   movePack.i = random(n);
+                   movePack.nn = random(V[movePack.i].size());
+                   if(S.totalWeight + V[movePack.i][movePack.nn].x() - V[movePack.i][W[movePack.i]].x() > I.W) continue;
+                   break;
+                 }
+               }),
+               ([&](ttour& S) -> double {
+                 double s0 = S.score(I);
+                 S.setCity(movePack.i, V[movePack.i][movePack.nn]);
+                 double s1 = S.score(I);
+                 S.setCity(movePack.i, V[movePack.i][W[movePack.i]]);
+                 return s0-s1;
+               }),
+               ([&](ttour& S) {
+                 W[movePack.i] = movePack.nn;
+                 S.setCity(movePack.i, V[movePack.i][W[movePack.i]]);
+               })
+               });
+  cout << score << endl;
+  simulated_annealing<ttour>
+    (S, -score,
+     MAX_SA_TIME2, 2*sqrt(abs(score)), // other max temperature ?
+     (1<<12), (1<<18),
+     moves,
+     [&](double, double sc, ttour const& S_) {
+      score = -sc;
+      S = S_;
+    });
+  cout << S.score(I) << " " << S.totalProfit << " " << S.totalWeight << endl;
+
+
+}
 
 int main(int argc, char** argv){
   random_reset(time(0));
@@ -178,11 +297,18 @@ int main(int argc, char** argv){
   I.print();
 
   vi tour = initial_tour(I);
+  // random_shuffle(all(tour),[](int m) { return random(m); });
   cout << "Length: " << tour_length(I, tour) << endl;
 
   array_tour tour2 = tsp(I,tour);
   cout << tour_length(I,tour2.tour) << endl;
-  greedy_packing(I,tour2.tour);
+  auto ttour = greedy_packing(I,tour2.tour);
+  dosmth(I, tour2.tour, ttour);
+  reverse(all(tour2.tour));
+  auto ttour2 = greedy_packing(I,tour2.tour);
+  dosmth(I, tour2.tour, ttour2);
+
+  // sa_packing(I,ttour);
 
   cerr << "Elapsed: " << (timeInfo.getTime()-time_0) << "s" << endl;
 

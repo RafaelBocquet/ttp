@@ -9,6 +9,7 @@ struct ttour {
     tour = tour_;
     assert((int)tour.size() == n-1);
     cityWeights.assign(n,0);
+    cityProfits.assign(n,0);
     tourDist.assign(n,0);
     { int last=0;
       FOR(i,n-1) {
@@ -26,6 +27,7 @@ struct ttour {
   double totalProfit = 0;
   double totalWeight = 0;
   vector<double> cityWeights;
+  vector<double> cityProfits;
 
   vector<bool> packing;
 
@@ -46,6 +48,7 @@ struct ttour {
     totalProfit += I.items[i].p;
     totalWeight += I.items[i].w;
     cityWeights[I.items[i].node] += I.items[i].w;
+    cityProfits[I.items[i].node] += I.items[i].p;
   }
 
   void unpack(instance const& I, int i) {
@@ -54,5 +57,17 @@ struct ttour {
     totalProfit -= I.items[i].p;
     totalWeight -= I.items[i].w;
     cityWeights[I.items[i].node] -= I.items[i].w;
+    cityProfits[I.items[i].node] -= I.items[i].p;
+  }
+
+  void setCity(int i, double w, double p) {
+    totalProfit += p-cityProfits[i];
+    totalWeight += w-cityWeights[i];
+    cityWeights[i]=w;
+    cityProfits[i]=p;
+  }
+
+  void setCity(int i, tpl<double, double> v) {
+    setCity(i,v.x(),v.y());
   }
 };

@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <bits/stdc++.h>
 
+const double EPS = 1e-10;
+
 #define FOR(i, n)     for(int i = 0; i < (int)(n); ++i)
 #define FORU(i, j, k) for(int i = (j); i <= (int)(k); ++i)
 #define FORD(i, j, k) for(int i = (j); i >= (int)(k); --i)
